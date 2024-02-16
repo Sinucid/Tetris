@@ -1,1 +1,1 @@
-export * from './getMeasurements';
+export * from "./getMeasurements";

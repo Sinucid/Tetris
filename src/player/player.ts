@@ -45,7 +45,7 @@ export class Player implements PlayerShape {
     );
   }
 
-  update({shape, x, y}: Partial<PlayerShape>): void {
+  update({ shape, x, y }: Partial<PlayerShape>): void {
     if (typeof x === "number") this._x = x;
     if (typeof y === "number") this._y = y;
     if (shape) this._shape = shape;

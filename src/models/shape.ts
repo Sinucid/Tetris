@@ -14,4 +14,4 @@ export const shapesMapping = Object.values(ShapeType);
 export type ShapeMeasurements = {
   x: number;
   y: number;
-}
+};

@@ -66,11 +66,11 @@ export class Game {
 
     const x = this.player.x - 1;
 
-    if (this.isOverlapping({x})) return;
+    if (this.isOverlapping({ x })) return;
 
     this.triggerLoop();
 
-    this.updatePlayer({x});
+    this.updatePlayer({ x });
   }
 
   protected moveRight(released: boolean): void {
@@ -79,28 +79,28 @@ export class Game {
 
     const x = this.player.x + 1;
 
-    if (this.isOverlapping({x})) return;
+    if (this.isOverlapping({ x })) return;
 
     this.triggerLoop();
 
-    this.updatePlayer({x});
+    this.updatePlayer({ x });
   }
 
   protected moveDown(released: boolean): void {
-    if(released) return;
+    if (released) return;
 
     if (!this.player) return;
 
     const y = this.player.y + 1;
 
-    if (this.isOverlapping({y})) {
+    if (this.isOverlapping({ y })) {
       this.commitState();
       return;
     }
 
     this.triggerLoop();
 
-    this.updatePlayer({y});
+    this.updatePlayer({ y });
   }
 
   protected rotate(released: boolean): void {
@@ -109,25 +109,25 @@ export class Game {
 
     const shape = this.player.rotate();
 
-    if (this.isOverlapping({shape})) return;
+    if (this.isOverlapping({ shape })) return;
 
     this.triggerLoop();
 
-    this.updatePlayer({shape});
+    this.updatePlayer({ shape });
   }
 
   protected resetPlayer(): void {
     if (this.player) {
-      this.player.update({shape: this.getRandomShape()});
+      this.player.update({ shape: this.getRandomShape() });
     } else {
       this.player = new Player(this.getRandomShape());
     }
 
     const { width, height } = getMeasurements(this.player!.shape);
 
-    this.player!.update({ 
-      x: Math.floor(this.config.width / 2 - width / 2), 
-      y: -height + 1
+    this.player!.update({
+      x: Math.floor(this.config.width / 2 - width / 2),
+      y: -height + 1,
     });
 
     //check for end game
@@ -138,7 +138,7 @@ export class Game {
       console.log("Game Over");
       return;
     }
-    
+
     this.updateRender();
   }
 
@@ -184,33 +184,39 @@ export class Game {
   }
 
   protected processCompletedLines(): void {
-    const notCompletedLines = this.field!.filter((row) => row.some((cell) => !cell));
+    const notCompletedLines = this.field!.filter((row) =>
+      row.some((cell) => !cell),
+    );
 
     if (this.field?.length !== notCompletedLines.length) {
       const diff = this.field!.length - notCompletedLines.length;
 
       this.field = [
-        ...Array(diff).fill(null).map(() => Array(this.config.width).fill(0)),
+        ...Array(diff)
+          .fill(null)
+          .map(() => Array(this.config.width).fill(0)),
         ...notCompletedLines,
       ];
     }
   }
 
-  protected isOverlapping({shape, x, y}: Partial<PlayerShape>): boolean {
+  protected isOverlapping({ shape, x, y }: Partial<PlayerShape>): boolean {
     const _shape = shape ?? this.player!.shape;
     const _x = x ?? this.player!.x;
     const _y = y ?? this.player!.y;
-    
+
     const { width, height } = getMeasurements(_shape);
 
-    if (_x < 0 || 
-        _x + width > this.config.width || 
-        _y + height > this.config.height) {
+    if (
+      _x < 0 ||
+      _x + width > this.config.width ||
+      _y + height > this.config.height
+    ) {
       return true;
     }
 
-    return _shape.some((row, i) => row.some((cell, j) => 
-      !!(this.field![_y + i]?.[_x + j] && cell)
-    ));
+    return _shape.some((row, i) =>
+      row.some((cell, j) => !!(this.field![_y + i]?.[_x + j] && cell)),
+    );
   }
 }

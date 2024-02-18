@@ -8,27 +8,26 @@ export enum Actions {
 }
 export const actionsMapping = Object.values(Actions);
 
-export type Handler = (code: Actions, released: boolean) => void;
+export type Handler = (code: Actions) => void;
 
 export class Control {
   constructor(protected handler: Handler) {
-    window.addEventListener("keydown", (e) => this.handleKey(e));
-    window.addEventListener("keyup", (e) => this.handleKey(e, true));
+    window.addEventListener("keydown", this.handleKey.bind(this));
   }
 
-  protected handleKey(e: KeyboardEvent, released = false): void {
+  protected handleKey(e: KeyboardEvent): void {
     switch (e.key) {
       case "ArrowLeft":
-        this.handler(Actions.MoveLeft, released);
+        this.handler(Actions.MoveLeft);
         break;
       case "ArrowRight":
-        this.handler(Actions.MoveRight, released);
+        this.handler(Actions.MoveRight);
         break;
       case "ArrowDown":
-        this.handler(Actions.MoveDown, released);
+        this.handler(Actions.MoveDown);
         break;
       case "ArrowUp":
-        this.handler(Actions.Rotate, released);
+        this.handler(Actions.Rotate);
         break;
     }
   }

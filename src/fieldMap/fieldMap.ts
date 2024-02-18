@@ -1,10 +1,10 @@
-import { ConfigModel, FieldMap } from "../models";
+import { GameConfig, FieldMap } from "../models";
 
-export class Field implements Field {
-  protected storage: FieldMap;
+export class Field {
+  protected storage!: FieldMap;
 
-  constructor(config: ConfigModel) {
-    this.storage = this.createMap(config.width, config.height);
+  constructor(protected config: GameConfig) {
+    this.clear();
   }
 
   getMap(): FieldMap {
@@ -13,6 +13,10 @@ export class Field implements Field {
 
   setMap(map: FieldMap): void {
     this.storage = map;
+  }
+
+  clear(): void {
+    this.storage = this.createMap(this.config.width, this.config.height);
   }
 
   protected createMap(width: number, height: number): FieldMap {

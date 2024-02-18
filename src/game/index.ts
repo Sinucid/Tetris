@@ -1,2 +1,2 @@
 export * from "./game";
-export * from "./field";
+export * from "./progression";

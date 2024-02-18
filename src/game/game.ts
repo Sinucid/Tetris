@@ -1,157 +1,31 @@
 import { Field } from "../fieldMap";
-import { ConfigModel, FieldMap, ShapeMatrix } from "../models";
-import { FieldRenderer } from "./field";
-import { Player, PlayerShape, shapes } from "../player";
+import { GameConfig, FieldMap, GameStates } from "../models";
+import { Player, PlayerShape } from "../player";
 import { Actions, Control } from "../control";
-import { getMeasurements } from "../utils";
+import { getMeasurements, getRandomShape } from "../utils";
+import { GameProgression } from ".";
+import { Render } from "../render";
 
 export class Game {
   protected loopRef?: number;
-  protected control?: Control;
-  protected field?: FieldMap;
-  protected renderer?: FieldRenderer;
+
+  protected control: Control;
+  protected field: Field;
+  protected render = new Render();
   protected player: Player | null = null;
-  protected speed = 1000;
-  protected inProgress = false;
+  protected progression = new GameProgression();
 
-  constructor(protected config: ConfigModel) {}
+  protected speed: number;
+  protected scores = 0;
+  protected level = 1;
+  protected gameState = GameStates.NotStarted;
 
-  init(): void {
-    this.field = new Field(this.config).getMap();
-    this.renderer = new FieldRenderer();
-
-    const template = this.renderer.createField(this.field);
-
-    document.getElementById(this.config.root)!.innerHTML = template;
-
-    this.control = new Control(this.handleControls.bind(this));
-  }
-
-  start(): void {
-    this.inProgress = true;
-    this.resetPlayer();
-    this.triggerLoop();
-  }
-
-  protected triggerLoop(): void {
-    if (!this.inProgress) return;
-    if (this.loopRef) clearTimeout(this.loopRef);
-    this.loopRef = setTimeout(() => {
-      this.moveDown(false);
-    }, this.speed);
-  }
-
-  protected handleControls(action: Actions, released: boolean): void {
-    if (!this.inProgress) return;
-
-    switch (action) {
-      case Actions.MoveLeft:
-        this.moveLeft(released);
-        break;
-      case Actions.MoveRight:
-        this.moveRight(released);
-        break;
-      case Actions.MoveDown:
-        this.moveDown(released);
-        break;
-      case Actions.Rotate:
-        this.rotate(released);
-        break;
-    }
-  }
-
-  protected moveLeft(released: boolean): void {
-    if (released) return;
-    if (!this.player) return;
-
-    const x = this.player.x - 1;
-
-    if (this.isOverlapping({ x })) return;
-
-    this.triggerLoop();
-
-    this.updatePlayer({ x });
-  }
-
-  protected moveRight(released: boolean): void {
-    if (released) return;
-    if (!this.player) return;
-
-    const x = this.player.x + 1;
-
-    if (this.isOverlapping({ x })) return;
-
-    this.triggerLoop();
-
-    this.updatePlayer({ x });
-  }
-
-  protected moveDown(released: boolean): void {
-    if (released) return;
-
-    if (!this.player) return;
-
-    const y = this.player.y + 1;
-
-    if (this.isOverlapping({ y })) {
-      this.commitState();
-      return;
-    }
-
-    this.triggerLoop();
-
-    this.updatePlayer({ y });
-  }
-
-  protected rotate(released: boolean): void {
-    if (released) return;
-    if (!this.player) return;
-
-    const shape = this.player.rotate();
-
-    if (this.isOverlapping({ shape })) return;
-
-    this.triggerLoop();
-
-    this.updatePlayer({ shape });
-  }
-
-  protected resetPlayer(): void {
-    if (this.player) {
-      this.player.update({ shape: this.getRandomShape() });
-    } else {
-      this.player = new Player(this.getRandomShape());
-    }
-
-    const { width, height } = getMeasurements(this.player!.shape);
-
-    this.player!.update({
-      x: Math.floor(this.config.width / 2 - width / 2),
-      y: -height + 1,
-    });
-
-    //check for end game
-    //TODO: extract to the separate method
-    if (this.isOverlapping({})) {
-      this.inProgress = false;
-      clearTimeout(this.loopRef);
-      console.log("Game Over");
-      return;
-    }
-
-    this.updateRender();
-  }
-
-  protected getRandomShape(): ShapeMatrix {
-    const randomShape = Math.ceil(
-      Math.random() * Object.keys(shapes).length,
-    ) as keyof typeof shapes;
-
-    return shapes[randomShape];
+  protected get inProgress(): boolean {
+    return this.gameState === GameStates.InProgress;
   }
 
   protected get mergedField(): FieldMap {
-    const map = this.field!.map(function (arr) {
+    const map = this.field.getMap().map(function (arr) {
       return arr.slice();
     });
     const { shape, x, y } = this.player!;
@@ -167,37 +41,207 @@ export class Game {
     return map;
   }
 
+  constructor(protected config: GameConfig) {
+    this.speed = config.baseSpeed;
+    this.field = new Field(this.config);
+    this.control = new Control(this.handleControls.bind(this));
+  }
+
+  init(): void {
+    this.render.createTemplate(this.config, this.field.getMap(), {
+      level: this.level,
+      scores: this.scores,
+      state: this.gameState,
+      onStateChange: this.handleBarClick.bind(this),
+    });
+  }
+
+  start(): void {
+    this.gameState = GameStates.InProgress;
+    this.resetGame();
+    this.triggerLoop();
+  }
+
+  protected triggerLoop(): void {
+    if (!this.inProgress) return;
+    if (this.loopRef) clearTimeout(this.loopRef);
+    this.loopRef = setTimeout(() => {
+      this.moveDown();
+    }, this.speed);
+  }
+
+  protected handleControls(action: Actions): void {
+    if (!this.inProgress) return;
+
+    switch (action) {
+      case Actions.MoveLeft:
+        this.moveLeft();
+        break;
+      case Actions.MoveRight:
+        this.moveRight();
+        break;
+      case Actions.MoveDown:
+        this.moveDown();
+        break;
+      case Actions.Rotate:
+        this.rotate();
+        break;
+    }
+  }
+
+  protected moveLeft(): void {
+    const x = this.player!.x - 1;
+
+    if (this.isOverlapping({ x })) return;
+
+    this.triggerLoop();
+
+    this.updatePlayer({ x });
+  }
+
+  protected moveRight(): void {
+    const x = this.player!.x + 1;
+
+    if (this.isOverlapping({ x })) return;
+
+    this.triggerLoop();
+
+    this.updatePlayer({ x });
+  }
+
+  protected moveDown(): void {
+    const y = this.player!.y + 1;
+
+    if (this.isOverlapping({ y })) {
+      this.commitState();
+      return;
+    }
+
+    this.triggerLoop();
+
+    this.updatePlayer({ y });
+  }
+
+  protected rotate(): void {
+    const shape = this.player!.rotate();
+
+    if (this.isOverlapping({ shape })) return;
+
+    this.triggerLoop();
+
+    this.updatePlayer({ shape });
+  }
+
+  protected resetPlayer(): void {
+    if (this.player) {
+      this.player.update({ shape: getRandomShape() });
+    } else {
+      this.player = new Player(getRandomShape());
+    }
+
+    const { width, height } = getMeasurements(this.player!.shape);
+
+    this.player!.update({
+      x: Math.floor(this.config.width / 2 - width / 2),
+      y: -height + 1,
+    });
+
+    //check for end game
+    if (this.isOverlapping({})) {
+      this.endGame();
+      return;
+    }
+
+    this.updateRender();
+  }
+
   protected updatePlayer(mutation: Partial<PlayerShape>): void {
     this.player!.update(mutation);
     this.updateRender();
   }
 
   protected updateRender(): void {
-    this.renderer!.updateFields(this.mergedField);
+    this.render!.updateFields(this.mergedField);
+  }
+
+  protected updateBar(): void {
+    this.render!.updateScoresBar({
+      level: this.level,
+      scores: this.scores,
+      state: this.gameState,
+      onStateChange: this.handleBarClick.bind(this),
+    });
+  }
+
+  protected handleBarClick(): void {
+    switch (this.gameState) {
+      case GameStates.NotStarted:
+      case GameStates.Ended:
+        this.start();
+        break;
+      case GameStates.InProgress:
+        this.gameState = GameStates.Paused;
+        clearTimeout(this.loopRef);
+        break;
+      case GameStates.Paused:
+        this.gameState = GameStates.InProgress;
+        this.triggerLoop();
+        break;
+    }
+
+    this.updateBar();
   }
 
   protected commitState(): void {
-    this.field = this.mergedField;
+    this.field.setMap(this.mergedField);
     this.processCompletedLines();
     this.resetPlayer();
     this.triggerLoop();
   }
 
+  protected endGame(): void {
+    this.gameState = GameStates.Ended;
+    clearTimeout(this.loopRef);
+
+    this.updateBar();
+  }
+
+  protected resetGame(): void {
+    this.scores = 0;
+    this.level = 1;
+    this.field.clear();
+    this.resetPlayer();
+  }
+
   protected processCompletedLines(): void {
-    const notCompletedLines = this.field!.filter((row) =>
+    const currentField = this.field.getMap();
+    const notCompletedLines = currentField.filter((row) =>
       row.some((cell) => !cell),
     );
 
-    if (this.field?.length !== notCompletedLines.length) {
-      const diff = this.field!.length - notCompletedLines.length;
+    if (currentField.length !== notCompletedLines.length) {
+      const lines = currentField.length - notCompletedLines.length;
 
-      this.field = [
-        ...Array(diff)
+      this.addScores(lines);
+
+      this.field.setMap([
+        ...Array(lines)
           .fill(null)
           .map(() => Array(this.config.width).fill(0)),
         ...notCompletedLines,
-      ];
+      ]);
     }
+  }
+
+  protected addScores(lines: number): void {
+    this.scores += this.config.scorePerLine * lines;
+    this.level = this.progression.calcLevel(
+      this.config.scorePerLevel,
+      this.scores,
+    );
+    this.speed = this.progression.calcSpeed(this.config.baseSpeed, this.level);
+
+    this.updateBar();
   }
 
   protected isOverlapping({ shape, x, y }: Partial<PlayerShape>): boolean {
@@ -216,7 +260,7 @@ export class Game {
     }
 
     return _shape.some((row, i) =>
-      row.some((cell, j) => !!(this.field![_y + i]?.[_x + j] && cell)),
+      row.some((cell, j) => !!(this.field.getMap()[_y + i]?.[_x + j] && cell)),
     );
   }
 }
